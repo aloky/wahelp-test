@@ -5,11 +5,12 @@
         {{ user.name }}
       </div>
       <div class="user-card--count">
-        {{ posts.length }}
+        {{ posts?.length }}
       </div>
     </div>
     <UserPosts
-      v-model:posts="posts"
+      v-if="posts"
+      :posts="posts"
       :user-id="user.id"
     />
   </div>
@@ -17,20 +18,24 @@
 
 <script setup>
 import UserPosts from './UserPosts.vue';
-import { defineProps, onMounted, ref } from 'vue';
+import { computed, defineProps, onMounted, ref } from 'vue';
+import { useStore } from 'vuex';
+
+const store = useStore();
 
 const props = defineProps({
   user: {
     type: Object,
     required: true
-  }
+  },
 });
 
-const posts = ref([]);
+const posts = computed(() => store.state.posts[props.user.id]);
 
 onMounted(async () => {
   const response = await fetch(`https://jsonplaceholder.typicode.com/users/${props.user.id}/posts`);
-  posts.value = await response.json();
+  const result = await response.json();
+  store.commit('setPosts', { userId: props.user.id, posts: result });
 });
 </script>
 

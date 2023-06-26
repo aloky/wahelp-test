@@ -6,7 +6,7 @@
     class="posts"
     @change="onChange"
   >
-    <template #item="{element}">
+    <template #item="{ element }">
       <div class="posts-item">
         <div class="posts-item--title">
           {{ element.title }}
@@ -49,6 +49,19 @@
       class="form"
       @submit.prevent="submit"
     >
+      <select
+        v-if="post.id"
+        v-model="post.userId"
+        class="input"
+      >
+        <option
+          v-for="user in users"
+          :key="user.id"
+          :value="user.id"
+        >
+          {{ user.id }}
+        </option>
+      </select>
       <input
         v-model="post.title"
         placeholder="Title"
@@ -68,7 +81,7 @@
         class="button"
         type="submit"
       >
-        {{ isEditablePostId ? 'Сохранить' : 'Добавить' }}
+        {{ post.id ? 'Сохранить' : 'Добавить' }}
       </button>
     </form>
   </TheModal>
@@ -77,8 +90,10 @@
 <script setup>
 import draggable from 'vuedraggable';
 import { defineProps, watch, defineEmits, ref, computed } from 'vue';
+import { useStore } from 'vuex';
 import TheModal from './TheModal.vue';
 
+const store = useStore();
 const emit = defineEmits(['update:posts']);
 
 const props = defineProps({
@@ -89,55 +104,47 @@ const props = defineProps({
   userId: {
     type: Number,
     required: true
-  }
+  },
 });
+
+const users = computed(() => store.state.users);
 
 const post = ref({
   title: '',
-  body: ''
+  body: '',
+  userId: props.userId,
 });
-const isEditablePostId = ref(null);
+
 const dialog = ref(false);
-const dialogTitle = computed(() => isEditablePostId.value ? 'Редактирование поста' : 'Добавление поста');
+const dialogTitle = computed(() => post.value.id ? 'Редактирование поста' : 'Добавление поста');
 
 watch(dialog, (value) => {
   if (!value) {
-    isEditablePostId.value = null;
-    post.value.title = '';
-    post.value.body = '';
+    post.value = {
+      title: '',
+      body: '',
+      userId: props.userId,
+    };
   }
 });
 
-const changePost = ({ title, body, id }) => {
-  isEditablePostId.value = id;
-  post.value.title = title;
-  post.value.body = body;
+const changePost = (value) => {
+  post.value = { ...value };
   dialog.value = true;
 };
 
 const removePost = (id) => {
-  emit('update:posts', props.posts.filter((el) => el.id !== id));
-};
-
-const moveElement = (array, { element, newIndex, oldIndex }) => {
-  let arrayCopy = [...array];
-
-  if (oldIndex !== undefined) {
-    arrayCopy.splice(oldIndex, 1);
-  }
-
-  arrayCopy.splice(newIndex, 0, element);
-  return arrayCopy;
+  store.commit('removePost', { userId: props.userId, postId: id });
 };
 
 const onChange = ({ added, removed, moved }) => {
   if (added) {
     added.element.userId = props.userId;
-    emit('update:posts', moveElement(props.posts, added));
+    store.commit('movePost', { userId: props.userId, post: added });
   }
 
   if (moved) {
-    emit('update:posts', moveElement(props.posts, moved));
+    store.commit('movePost', { userId: props.userId, post: moved });
   }
 
   if (removed) {
@@ -146,23 +153,21 @@ const onChange = ({ added, removed, moved }) => {
 };
 
 const submit = () => {
-  const { title, body } = post.value;
-  if (isEditablePostId.value) {
-    const index = props.posts.findIndex((el) => el.id === isEditablePostId.value);
-    const arrayCopy = [...props.posts];
-    arrayCopy.splice(index, 1, {
-      title,
-      body,
-      id: isEditablePostId.value,
-      userId: props.userId
-    });
-    emit('update:posts', arrayCopy);
+  if (post.value.id) {
+    if (post.value.userId === props.userId) {
+      const index = store.state.posts[props.userId].findIndex((el) => el.id === post.value.id);
+      const arrayCopy = [...props.posts];
+      arrayCopy.splice(index, 1, post.value);
+      store.commit('setPosts', { userId: props.userId, posts: arrayCopy });
+    } else {
+      store.commit('addPost', { userId: post.value.userId, post: post.value });
+      removePost(post.value.id);
+    }
   } else {
-    emit('update:posts', props.posts.concat({ title,
-      body,
+    store.commit('addPost', { userId: props.userId, post: {
+      ...post.value,
       id: Date.now(),
-      userId: props.userId
-    }));
+    }});
   }
   dialog.value = false;
 };

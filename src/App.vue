@@ -10,14 +10,17 @@
 
 <script setup>
 import UserCard from './components/UserCard.vue';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { useStore } from 'vuex';
 
-const users = ref([]);
+const store = useStore();
+
+const users = computed(() => store.state.users);
 
 onMounted(async () => {
   const response = await fetch('https://jsonplaceholder.typicode.com/users');
-
-  users.value = await response.json(); 
+  const result = await response.json();
+  store.commit('setUsers', result);
 });
 </script>
 
